@@ -180,6 +180,7 @@ function createTimerInput(flag: FWFlagTimerPasswordPadlock, index: number, disab
 const root = "mbs-fwitemset";
 const ID = Object.freeze({
     root: root,
+    canvas: `${root}-canvas`,
     styles: `${root}-style`,
 
     delete: `${root}-delete`,
@@ -226,6 +227,87 @@ const ID = Object.freeze({
     lockTimer: `${root}-lock-timer`,
 });
 
+function getColorSegment(layer: AssetLayer, layerColor: string): [layerColor: string, colorSegment: string | undefined] {
+    let colorSuffix: string | undefined = undefined;
+    if (layer.ColorSuffix && layerColor) {
+        colorSuffix = (layerColor[0] === "#") ? layer.ColorSuffix.HEX_COLOR : layer.ColorSuffix[layerColor];
+        if (colorSuffix && colorSuffix[0] === "#") {
+            layerColor = colorSuffix;
+            colorSuffix = undefined;
+        }
+    }
+
+    const shouldColorize = layer.AllowColorize && layerColor && layerColor[0] === "#";
+    let colorSegment = "";
+
+    if (shouldColorize) {
+        // The layer is colorizable and has an explicit hexcode, it needs to be drawn colorized
+        return [layerColor, colorSuffix];
+    } else {
+        // The layer isn't colorizable, so validate that the layer color is a named color
+        // If a color suffix is specified and isn't Default, it'll completely override the final color
+        if (layerColor != null && layerColor !== "Default" && layerColor[0] !== "#") {
+            colorSegment = layerColor;
+        }
+        if (colorSuffix) {
+            colorSegment = colorSuffix !== "Default" ? colorSuffix : "";
+        }
+        return [layerColor, colorSegment];
+    }
+}
+
+function fetchURLs(character: Character) {
+    return character.Appearance.flatMap(item => {
+        const asset = item.Asset;
+        if (!asset.Visible) {
+            return [];
+        }
+
+        return item.Asset.Layer.map(layer => {
+            if (!layer.HasImage) {
+                return "";
+            }
+
+            const pose = CommonDrawResolveAssetPose(character, layer);
+            let poseSegment = layer.PoseMapping[pose as AssetPoseName];
+            switch (poseSegment) {
+                case PoseType.HIDE:
+                case PoseType.DEFAULT:
+                case undefined:
+                    poseSegment = "";
+                    break;
+            }
+
+            let layerType = "";
+            const typeRecord = item.Property?.TypeRecord ?? {};
+            if (layer.CreateLayerTypes.length > 0) {
+                layerType = layer.CreateLayerTypes.map(k => `${k}${typeRecord[k] ?? 0}`).join("");
+            }
+
+			let layerColor = CommonDrawResolveLayerColor(character, item, layer, asset.DynamicGroupName);
+            let colorSegment: string | undefined;
+            [layerColor, colorSegment] = getColorSegment(layer, layerColor);
+
+            const layerSegments = [
+                asset.Name,
+                character.Appearance.find(i => i.Asset.Group.Name === layer.ParentGroupName)?.Asset?.Name,
+                layerType,
+                colorSegment,
+                layer.Name,
+            ]
+            const segments = [
+                "Assets",
+                asset.Group.Family,
+                asset.DynamicGroupName,
+                poseSegment,
+                CommonDrawResolveLayerExpression(character, item, layer),
+                layerSegments.filter(Boolean).join("_"),
+            ];
+            return segments.filter(Boolean).join("/") + ".png";
+        }).filter(Boolean);
+    });
+}
+
 export class FWItemSetScreen extends MBSObjectScreen<FWItemSet> {
     static readonly ids = ID;
     static readonly screen = "MBS_FWItemSetScreen";
@@ -235,6 +317,10 @@ export class FWItemSetScreen extends MBSObjectScreen<FWItemSet> {
     static readonly screenParamsDefault = {
         [root]: Object.freeze({
             shape: [80, 60, 1840, 880] as RectTuple,
+            visibility: "visible",
+        }),
+        [ID.canvas]: Object.freeze({
+            shape: [0, 0, 2000, 1000] as RectTuple,
             visibility: "visible",
         }),
     };
@@ -250,6 +336,9 @@ export class FWItemSetScreen extends MBSObjectScreen<FWItemSet> {
         super(parent, wheelList, index, character, FWItemSetScreen.screenParamsDefault, screenParams);
         this.settings = new FWSelectedItemSet(wheelList);
         this.preview = CharacterLoadSimple("MBSFortuneWheelPreview");
+        this.preview.ArousalSettings = { AffectExpression: false } as ArousalSettingsType;
+
+        document.body.appendChild(<canvas id={ID.canvas} width={2000} height={1000} />);
 
         document.body.appendChild(
             <div id={ID.root} class="mbs-screen">
@@ -488,7 +577,7 @@ export class FWItemSetScreen extends MBSObjectScreen<FWItemSet> {
     }
 
     /** Reload the appearance of thepreview character based on the current settings. */
-    #reloadPreviewAppearance(): void {
+    async #reloadPreviewAppearance() {
         this.preview.Appearance = [...this.character.Appearance];
         this.preview.OnlineSharedSettings = this.character.OnlineSharedSettings;
         CharacterReleaseTotal(this.preview);
@@ -512,6 +601,7 @@ export class FWItemSetScreen extends MBSObjectScreen<FWItemSet> {
             "MBSPreview", items,
             this.settings.stripLevel, null, null, this.preview,
         );
+        this.#reloadCanvas(true);
     }
 
     /** Loads the club crafting room in slot selection mode, creates a dummy character for previews. */
@@ -556,8 +646,22 @@ export class FWItemSetScreen extends MBSObjectScreen<FWItemSet> {
         this.#reloadPreviewAppearance();
     }
 
-    draw() {
-        DrawCharacter(this.preview, 200, 175, 0.78, false);
+    async #reloadCanvas(clear: boolean) {
+        const canvas = document.getElementById(ID.canvas) as HTMLCanvasElement;
+        if (clear) {
+            const context = canvas.getContext("2d") as CanvasRenderingContext2D;
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            const urls = fetchURLs(this.preview);
+            await Promise.all(urls.map(i => fetch(i, { cache: "force-cache" })));
+        } else {
+            Object.assign(canvas.style, { left: "",  top: "", with: "", height: "" });
+        }
+        DrawCharacter(this.preview, 200, 175, 0.78, undefined, canvas.getContext("2d") as CanvasRenderingContext2D);
+    }
+
+    resize(load: boolean): void {
+        super.resize(load);
+        this.#reloadCanvas(false);
     }
 
     exit(fullExit?: boolean, action?: ExitAction): void {
