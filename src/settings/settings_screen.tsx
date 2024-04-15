@@ -51,6 +51,7 @@ type BoolSettings = keyof { [k in keyof MBSSettings as MBSSettings[k] extends bo
 const root = "mbs-preference";
 const ID = Object.freeze({
     root,
+    canvas: `${root}-canvas`,
     styles: `${root}-style`,
 
     header: `${root}-header`,
@@ -105,10 +106,16 @@ export class MBSPreferenceScreen extends MBSScreen {
             shape: [0, 0, 2000, 1000] as RectTuple,
             visibility: "hidden",
         }),
+        [ID.canvas]: Object.freeze({
+            shape: [0, 0, 2000, 1000] as RectTuple,
+            visibility: "visible",
+        }),
     };
 
     constructor(parent: null | MBSScreen, params: null | ScreenParams.Partial = null) {
         super(parent, MBSPreferenceScreen.screenParamsDefault, params);
+
+        document.body.appendChild(<canvas id={ID.canvas} width={2000} height={1000} />);
 
         document.body.appendChild(
             <div id={ID.root} class="mbs-screen">
@@ -352,8 +359,11 @@ export class MBSPreferenceScreen extends MBSScreen {
         super.load();
     }
 
-    draw() {
-        DrawCharacter(Player, 50, 50, 0.9);
+    resize(load: boolean) {
+        super.resize(load);
+        const canvas = document.getElementById(ID.canvas) as HTMLCanvasElement;
+        Object.assign(canvas.style, { left: "",  top: "", with: "", height: "" });
+        DrawCharacter(Player, 50, 50, 0.9, undefined, canvas.getContext("2d") as CanvasRenderingContext2D);
     }
 
     exit() {
