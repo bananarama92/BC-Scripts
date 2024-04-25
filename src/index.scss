@@ -11,10 +11,13 @@
 }
 
 .mbs-button {
+	background-color: var(--mbs-button-color);
 	background-origin: content-box;
 	background-position: center;
 	background-repeat: no-repeat;
 	background-size: cover;
+	border: min(0.3dvh, 0.15dvw) solid var(--mbs-border-color);
+	font: inherit;
 	height: 100%;
 	overflow: clip;
 	padding-left: min(2dvh, 1dvw);
@@ -29,8 +32,7 @@
 	}
 
 	&:disabled {
-		background-color: var(--mbs-button-color);
-		filter: brightness(60%);
+		background-color: color-mix(in srgb, var(--mbs-button-color) 60%, black 40%);
 	}
 }
 
@@ -80,7 +82,7 @@
 	padding-top: min(1dvh, 0.5dvw);
 
 	&:nth-child(even) {
-		filter: brightness(85%);
+		background-color: color-mix(in srgb, var(--mbs-button-color) 85%, black 15%);
 	}
 }
 
@@ -103,12 +105,13 @@
 	user-select: none;
 	visibility: hidden;
 	grid-gap: min(2dvh, 1dvw);
+	color: var(--mbs-text-color);
+	font-family: var(--mbs-font-family);
+	font-size: var(--mbs-font-small);
 
-	h1, h2, p, ul {
+	h1, h2, h3, h4, h5, h6, [role="heading"], p, ul {
 		align-items: center;
 		align-self: center;
-		color: var(--mbs-text-color);
-		font-family: var(--mbs-font-family);
 	}
 
 	h1 {
@@ -124,52 +127,67 @@
 		text-align: left;
 	}
 
-	p, h2, ul, span {
-		font-size: var(--mbs-font-small);
-	}
-
-	div, input {
+	input {
 		background-color: var(--mbs-background-color);
+		box-sizing: border-box;
 		color: var(--mbs-text-color);
+		font: inherit;
 		font-family: var(--mbs-font-family);
 		font-size: var(--mbs-font-small);
+		padding: unset;
+
+		&:invalid {
+			background-color: #fbb;
+			box-shadow: 0 0 3px 2px #c22;
+		}
+
+		&[type="checkbox"] {
+			border: min(0.3dvh, 0.15dvw) solid var(--mbs-border-color);
+			cursor: pointer;
+			height: min(7dvh, 3.5dvw);
+			width: min(7dvh, 3.5dvw);
+
+			&:hover {
+				background-color: var(--mbs-hover-color);
+			}
+
+			&:disabled {
+				background-color: color-mix(in srgb, var(--mbs-background-color) 60%, black 40%);
+				cursor: auto;
+			}
+
+			&::before {
+				height: min(4.6dvh, 2.3dvw);
+				width: min(4.6dvh, 2.3dvw);
+			}
+		}
 	}
 
-	button {
+	select {
 		background-color: var(--mbs-button-color);
 		border: min(0.3dvh, 0.15dvw) solid var(--mbs-border-color);
+		box-sizing: border-box;
 		color: var(--mbs-text-color);
+		cursor: pointer;
+		font: inherit;
 		font-family: var(--mbs-font-family);
 		font-size: var(--mbs-font-small);
-	}
-
-	input {
-		box-sizing: border-box;
-		padding: unset;
-	}
-
-	input:invalid {
-		background-color: #fbb;
-		box-shadow: 0 0 3px 2px #c22;
-	}
-
-	input[type="checkbox"] {
-		border: min(0.3dvh, 0.15dvw) solid var(--mbs-border-color);
-		height: min(7dvh, 3.5dvw);
-		width: min(7dvh, 3.5dvw);
-
-		&:hover {
-			background-color: var(--mbs-hover-color);
-		}
+		text-overflow: ellipsis;
 
 		&:disabled {
-			background-color: var(--mbs-background-color);
-			filter: brightness(60%);
+			background-color: color-mix(in srgb, var(--mbs-background-color) 60%, black 40%);
+			cursor: auto;
 		}
+	}
 
-		&::before {
-			height: min(4.6dvh, 2.3dvw);
-			width: min(4.6dvh, 2.3dvw);
+	label {
+		&:not(:has(:disabled)) > span {
+			cursor: pointer;
 		}
+	}
+
+	.button,
+	.button-tooltip {
+		border-width: min(0.3dvh, 0.15dvw);
 	}
 }

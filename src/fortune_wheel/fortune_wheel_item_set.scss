@@ -1,40 +1,75 @@
 #mbs-fwitemset {
-	grid-template:
-		"delete header header header accept cancel exit" min(9dvh, 4.5dvw)
-		". . name-input name-input . . ." min(7dvh, 3.5dvw)
-		". . outfit-input outfit-input outfit-button outfit-button outfit-button" min(7dvh, 3.5dvw)
-		". . strip-header lock-header lock-header lock-header lock-header" min(7dvh, 3.5dvw)
-		". . strip-input lock-grid lock-grid lock-grid lock-grid" min(7dvh, 3.5dvw)
-		". . equip-header lock-grid lock-grid lock-grid lock-grid" min(7dvh, 3.5dvw)
-		". . equip-input lock-grid lock-grid lock-grid lock-grid" min(7dvh, 3.5dvw)
-		". . weight-header lock-grid lock-grid lock-grid lock-grid" min(7dvh, 3.5dvw)
-		". . weight-input lock-grid lock-grid lock-grid lock-grid" min(7dvh, 3.5dvw) / min(9dvh, 4.5dvw) min(40dvh, 20dvw) auto min(38dvh, 19dvw) min(16dvh, 8dvw) min(9dvh, 4.5dvw) min(9dvh, 4.5dvw);
+	--gap: min(2dvh, 1dvw);
+	--height: min(7dvh, 3.5dvw);
 
-	span {
-		place-self: end start;
+	grid-template:
+		"menubar menubar menubar menubar menubar menubar menubar" min(9dvh, 4.5dvw)
+		". . name-input name-input . . ." var(--height)
+		". . outfit-input outfit-input outfit-button outfit-button outfit-button" var(--height)
+		". . strip-header lock-header lock-header lock-header lock-header" var(--height)
+		". . strip-input lock-grid lock-grid lock-grid lock-grid" var(--height)
+		". . equip-header lock-grid lock-grid lock-grid lock-grid" var(--height)
+		". . equip-input lock-grid lock-grid lock-grid lock-grid" var(--height)
+		". . weight-header lock-grid lock-grid lock-grid lock-grid" var(--height)
+		". . weight-input lock-grid lock-grid lock-grid lock-grid" var(--height)
+		". . event-header event-header event-header event-header event-header" var(--height)
+		". . event-menu event-menu event-menu event-menu event-menu" min-content / min(9dvh, 4.5dvw) min(40dvh, 20dvw) auto min(38dvh, 19dvw) min(16dvh, 8dvw) min(9dvh, 4.5dvw) min(9dvh, 4.5dvw);
+
+	.button-tooltip {
+		--tooltip-gap: var(--gap);
 	}
 }
 
-#mbs-fwitemset-delete {
-	grid-area: delete;
+#mbs-fwitemset-menubar {
+	display: grid;
+	gap: var(--gap);
+	grid-area: menubar;
+	grid-template-columns: subgrid;
+	grid-template-rows: subgrid;
+	padding: 3px;
+
+	#mbs-fwitemset-delete {
+		grid-column: 1;
+	}
+
+	#mbs-fwitemset-header {
+		grid-column: 2 / 5;
+		margin-left: min(20dvh, 10dvw);
+	}
+
+	#mbs-fwitemset-accept {
+		grid-column: 5;
+		justify-self: end;
+	}
+
+	#mbs-fwitemset-cancel {
+		grid-column: 6;
+	}
+
+	#mbs-fwitemset-exit {
+		grid-column: 7;
+	}
+
+	.button {
+		height: min(9dvh, 4.5dvw);
+		width: min(9dvh, 4.5dvw);
+	}
 }
 
-#mbs-fwitemset-header {
-	grid-area: header;
-	margin-left: min(20dvh, 10dvw);
-}
+#mbs-fwitemset-form {
+	background-color: unset;
+	display: grid;
+	grid-column: 1 / 8;
+	grid-row: 2 / 12;
+	grid-template-columns: subgrid;
+	grid-template-rows: subgrid;
+	height: calc(8.5 * (var(--height) + var(--gap)));
+	padding: 3px;
 
-#mbs-fwitemset-accept {
-	grid-area: accept;
-	justify-self: end;
-}
-
-#mbs-fwitemset-cancel {
-	grid-area: cancel;
-}
-
-#mbs-fwitemset-exit {
-	grid-area: exit;
+	& > label,
+	& > span {
+		place-self: end start;
+	}
 }
 
 #mbs-fwitemset-outfit-name {
@@ -45,10 +80,10 @@
 	grid-area: outfit-input;
 }
 
-#mbs-fwitemset-outfit-div {
+#mbs-fwitemset-outfit-button {
 	grid-area: outfit-button;
 	grid-template-columns: auto;
-	grid-template-rows: min(7dvh, 3.5dvw) auto;
+	grid-template-rows: var(--height) auto;
 }
 
 #mbs-fwitemset-strip-header {
@@ -77,7 +112,7 @@
 	align-self: start;
 	grid-area: weight-input;
 	height: 100%;
-	width: calc(min(7dvh, 3.5dvw) + 16px);
+	width: calc(var(--height) + 16px);
 }
 
 #mbs-fwitemset-lock-header {
@@ -87,18 +122,22 @@
 #mbs-fwitemset-lock-grid {
 	align-self: start;
 	display: grid;
-	gap: min(2dvh, 1dvw);
+	gap: var(--gap);
 	grid-area: lock-grid;
-	grid-template-columns: min(38dvh, 19dvw) min(38dvh, 19dvw);
-	overflow-y: scroll;
+	grid-template-columns: 1fr 1fr;
+	margin: unset;
+	padding: unset;
 }
 
 .mbs-fwitemset-lock-container {
 	align-items: center;
 	display: grid;
 	word-wrap: break-word;
-	gap: min(2dvh, 1dvw);
-	grid-template-columns: min(7dvh, 3.5dvw) auto;
+	gap: var(--gap);
+	grid-template-columns: var(--height) auto;
+	list-style-type: none;
+	margin: unset;
+	padding: unset;
 }
 
 .mbs-timer {
@@ -109,4 +148,130 @@
 
 #mbs-fwitemset-strip-dropdown-content, #mbs-fwitemset-equip-dropdown-content {
 	width: min-content;
+}
+
+#mbs-fwitemset-events-label {
+	grid-area: event-header;
+}
+
+#mbs-fwitemset-events {
+	grid-area: event-menu;
+	list-style-type: none;
+	margin: unset;
+	padding: unset;
+
+	p {
+		margin-bottom: calc(var(--gap) / 2);
+		margin-top: calc(var(--gap) / 2);
+	}
+
+	.mbs-fwitemset-event-menu-placeholder {
+		justify-self: center;
+
+		& > button {
+			height: var(--height);
+			width: var(--height);
+		}
+	}
+
+	* ~ .mbs-fwitemset-event-menu-placeholder {
+		display: none;
+	}
+
+	.mbs-fwitemset-event-multi-select {
+		background-color: unset;
+		display: grid;
+		gap: var(--gap);
+		grid-template:
+			"all none" var(--height)
+			"select select" auto / 1fr 1fr;
+
+		button[data-select-all] {
+			grid-area: all;
+		}
+
+		button:not([data-select-all]) {
+			grid-area: none;
+		}
+
+		select {
+			grid-area: select;
+		}
+	}
+
+	.mbs-fwitemset-event-collapse {
+		height: var(--height);
+		width: var(--height);
+	}
+
+	.mbs-fwitemset-event-menu {
+		display: block;
+		list-style-type: none;
+		margin: unset;
+		padding: unset;
+		padding-bottom: calc(var(--gap) / 2);
+		padding-top: calc(var(--gap) / 2);
+
+		select {
+			min-height: var(--height);
+			width: 100%;
+		}
+
+		input {
+			&:invalid {
+				background-color: var(--mbs-background-color);
+				box-shadow: unset;
+			}
+
+			&[type="text"] {
+				height: 1em;
+				width: 100%;
+			}
+
+			&[type="number"] {
+				height: 1em;
+				width: 50%;
+			}
+		}
+	}
+
+	.mbs-fwitemset-event-kwargs {
+		& > * {
+			margin-block: var(--gap);
+		}
+
+		&:last-of-type > :last-child {
+			margin-block: var(--gap) 0;
+		}
+	}
+
+	.mbs-fwitemset-event {
+		align-items: center;
+		display: grid;
+		gap: var(--gap);
+		grid-template-columns: min-content min-content auto 45%;
+		padding-right: calc(var(--gap) / 2);
+
+		&:nth-child(odd) {
+			background-color: color-mix(in srgb, var(--mbs-background-color), black 15%);
+		}
+
+		&:has(.mbs-fwitemset-event-collapse[aria-expanded="false"]) > .mbs-fwitemset-event-menu {
+			& > * {
+				display: none;
+			}
+
+			& > .mbs-fwitemset-event-menu-placeholder {
+				display: block;
+			}
+		}
+	}
+
+	.mbs-fwitemset-event-checkbox:checked ~ .mbs-fwitemset-event-menu {
+		select:invalid:not(:disabled),
+		input:invalid:not(:disabled) {
+			background-color: #fbb;
+			box-shadow: 0 0 3px 2px #c22;
+		}
+	}
 }

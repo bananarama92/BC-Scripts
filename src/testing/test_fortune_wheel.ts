@@ -54,7 +54,6 @@ export function test_builtinMBSWheel(): void {
 
                 wheelItemRef = {
                     ...wheelItemRef,
-                    ItemCallback: undefined,
                     Property: { ...wheelItem.Property, ...wheelItemRef.Property },
                     Equip: undefined,
                     Craft: (

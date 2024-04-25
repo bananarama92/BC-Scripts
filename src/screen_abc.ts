@@ -83,6 +83,7 @@ export abstract class MBSScreen {
 
     /** Called when this screen is being replaced */
     unload() {
+        document.activeElement?.dispatchEvent(new FocusEvent("blur"));
         for (const id of keys(this.screenParams)) {
             const elem = document.getElementById(id);
             if (elem !== null) {
@@ -93,6 +94,7 @@ export abstract class MBSScreen {
 
     /** Called when user presses Esc */
     exit() {
+        document.activeElement?.dispatchEvent(new FocusEvent("blur"));
         for (const id of keys(this.screenParams)) {
             ElementRemove(id);
         }

@@ -33,14 +33,16 @@ export function validateInt(
     varName: string,
     min: number = Number.MIN_SAFE_INTEGER,
     max: number = Number.MAX_SAFE_INTEGER,
+    errPrefix: null | string = null,
 ): void {
     if (!(Number.isInteger(int) && int >= min && int <= max)) {
+        errPrefix = errPrefix == null ? "" : `${errPrefix}: `;
         if (typeof int !== "number") {
-            throw new TypeError(`Invalid "${varName}" type: ${typeof int}`);
+            throw new TypeError(`${errPrefix}Invalid "${varName}" type: ${typeof int}`);
         } else if (!Number.isInteger(int)) {
-            throw new Error(`"${varName}" must be an integer: ${int}`);
+            throw new Error(`${errPrefix}"${varName}" must be an integer: ${int}`);
         } else {
-            throw new RangeError(`"${varName}" must fall in the [${min}, ${max}] interval: ${int}`);
+            throw new RangeError(`${errPrefix}"${varName}" must fall in the [${min}, ${max}] interval: ${int}`);
         }
     }
 }
@@ -95,13 +97,15 @@ export function getRandomPassword(n: number): string {
     return range(0, n).map(_ => sample(ALPHABET)).join("");
 }
 
-/** The MBS {@link ModSDKGlobalAPI} instance. */
-export const MBS_MOD_API = bcModSdk.registerMod({
+export const MBS_MOD_INFO = Object.freeze({
     name: "MBS",
     fullName: "Maid's Bondage Scripts",
     repository: "https://github.com/bananarama92/MBS",
     version: MBS_VERSION,
-});
+}) satisfies import("bondage-club-mod-sdk").ModSDKModInfo;
+
+/** The MBS {@link ModSDKGlobalAPI} instance. */
+export const MBS_MOD_API = bcModSdk.registerMod(MBS_MOD_INFO);
 
 /** A proxy for lazily accessing the BCX mod API. */
 class ModAPIProxy implements BCX_ModAPI {

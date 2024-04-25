@@ -20,6 +20,11 @@
     color: var(--mbs-text-color);
     cursor: pointer;
     font: inherit;
+
+    &:disabled {
+        background-color: color-mix(in srgb, var(--mbs-background-color) 60%, black 40%);
+        cursor: auto;
+    }
 }
 
 /* stylelint-disable selector-id-pattern */

@@ -1,3 +1,4 @@
+import { wheelHookRegister, ExtendedWheelEvents }  from "./events";
 import { fortuneItemsSort, fortuneWheelEquip, StripLevel, getStripCondition } from "./equipper";
 import { toItemBundles } from "./item_bundle";
 import { FWItemSetScreen } from "./fortune_wheel_item_set";
@@ -27,4 +28,6 @@ export {
     StripLevel,
     getStripCondition,
     getFlagDescription,
+    wheelHookRegister,
+    ExtendedWheelEvents,
 };

@@ -3,8 +3,9 @@ import { settingsMBSLoaded, bcLoaded } from "../common_bc";
 
 import * as wheelOutfits from "./wheel_outfits";
 import * as css from "./css";
+import * as wheelEvents from "./wheel_events";
 
-export { wheelOutfits, css };
+export { wheelOutfits, css, wheelEvents };
 
 /**
  * The version of the MBS API.
@@ -16,7 +17,7 @@ export const API_VERSION = Object.freeze({
     /** The major API versions; increments are reserved for changes and removals */
     major: 1,
     /** The minor API versions; increments are reserved for additions */
-    minor: 4,
+    minor: 5,
 }) satisfies typeof mbs.API_VERSION;
 
 function jsonStringifier(key: string, value: any) {

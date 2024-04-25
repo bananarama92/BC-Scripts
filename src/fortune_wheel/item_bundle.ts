@@ -205,7 +205,6 @@ export function fromItemBundle(
         TypeRecord: typeRecord,
         Color: color,
         Craft: Object.freeze(craft),
-        ItemCallback: undefined,
         Equip: undefined,
     });
 }

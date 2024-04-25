@@ -7,7 +7,7 @@ import { validateBCVersion, validateHookHashes } from "./sanity_checks";
 import { bcLoaded } from "./common_bc";
 import { toItemBundles as _toItemBundles } from "./fortune_wheel";
 import { unpackSettings as _unpackSettings } from "./settings";
-import { wheelOutfits, getDebug, API_VERSION, css } from "./api";
+import { wheelOutfits, getDebug, API_VERSION, css, wheelEvents } from "./api";
 import { runTests } from "./testing";
 
 import styles from "./index.scss";
@@ -20,6 +20,7 @@ export {
     _version as MBS_VERSION,
     API_VERSION,
     wheelOutfits,
+    wheelEvents,
     getDebug,
     css,
     _getOriginalHash,

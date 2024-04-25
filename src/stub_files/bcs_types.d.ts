@@ -15,6 +15,29 @@ interface FWItemSetOption extends Required<FWObjectOption> {
     readonly Parent: import("../common_bc").FWItemSet,
 }
 
+interface FWHook {
+    /** The mod SDK name of the mod */
+    readonly modName: string,
+    /** The type of event listener */
+    readonly hookType: import("../fortune_wheel/events/register").ExtendedWheelEvents.Events.Names,
+    /** The ID of the event listener */
+    readonly hookName: string,
+    /** User-specified options for conditionally running the event listener */
+    readonly kwargs: Readonly<Record<string, WheelEvents.Kwargs.All>>;
+    /** The config of */
+    readonly kwargsConfig: Record<string, WheelEvents.KwargsConfig.All>;
+}
+
+interface FWJsonHook extends Omit<Mutable<FWHook>, "kwargs" | "kwargsConfig"> {
+    /** User-specified options for conditionally running the event listener */
+    kwargs: Record<string, WheelEvents.Kwargs.JsonAll>;
+}
+
+interface FWSelectedHook extends Omit<FWHook, "kwargs" | "kwargsConfig"> {
+    /** User-specified options for conditionally running the event listener */
+    readonly kwargs: Map<string, WheelEvents.Kwargs.All>;
+}
+
 /** Type representing MBS `FWCommand` fortune wheel options */
 interface FWCommandOption extends FWObjectOption {
     /**
@@ -78,8 +101,8 @@ interface FWItemBase {
     Equip?: (character: Character) => boolean,
     /** Optional crafted item data */
     Craft?: Partial<CraftingItem>,
-    /** An optional callback for post-processing the item after it's equipped and its type is set */
-    ItemCallback?: FortuneWheelCallback;
+    /** @deprecated superseded by the MBS 1.8 `afterItemEquip` event */
+    ItemCallback?: never;
     /** Whether this is a custom user-specified item set */
     Custom?: boolean,
     /** The type of the item */
@@ -99,24 +122,13 @@ interface FWItem extends Readonly<FWItemBase> {
     readonly Type?: never;
     readonly Property: Readonly<ItemProperties>,
     readonly Color: undefined | readonly string[],
-    readonly ItemCallback: undefined | FortuneWheelCallback;
+    /** @deprecated superseded by the MBS 1.8 `afterItemEquip` event */
+    readonly ItemCallback?: never;
     readonly Equip: undefined | ((character: Character) => boolean),
 }
 
 /** A union with the names of all pre-defined MBS item sets. */
 type FortuneWheelNames = "leash_candy" | "mummy" | "maid" | "statue";
-
-/** Wheel of fortune callbacks that are to-be applied to individual items */
-type FortuneWheelCallback = (item: Item, character: Character) => void;
-
-/**
- * Wheel of fortune callbacks that are to-be applied to the entire item list.
- * The callback must return either a new or the original item list.
- */
-type FortuneWheelPreRunCallback = (
-    itemList: readonly FWItem[],
-    character: Character,
-) => readonly FWItem[];
 
 /** A union of valid wheel of fortune button colors */
 type FortuneWheelColor = "Blue" | "Gold" | "Gray" | "Green" | "Orange" | "Purple" | "Red" | "Yellow";
@@ -229,14 +241,15 @@ interface FWSimpleItemSet {
     equipLevel: StripLevel,
     flags: readonly Readonly<FWFlag>[],
     custom: boolean,
-    preRunCallback: FortuneWheelPreRunCallback | null,
     weight: number,
+    activeHooks: Readonly<Record<string, FWJsonHook>>,
 }
 
 /** A simplified (partial) interface representing {@link FWItemSet} */
-interface FWSimplePartialItemSet extends Partial<FWSimpleItemSet>{
+interface FWSimplePartialItemSet extends Omit<Partial<FWSimpleItemSet>, "activeHooks"> {
     name: string,
     itemList: readonly FWItem[],
+    activeHooks: Readonly<Record<string, FWJsonHook | FWHook>>,
 }
 
 /** A simplified interface representing {@link FWCommand} */

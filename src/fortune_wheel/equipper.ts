@@ -1,11 +1,13 @@
 /** Module related to the equipping and removing of wheel of fortune items. */
 
-import { cloneDeep, sortBy } from "lodash-es";
+import { cloneDeep, sortBy, sum, pick } from "lodash-es";
 
-import { BCX_MOD_API, waitFor, isArray, entries, includes, logger } from "../common";
+import { BCX_MOD_API, MBS_MOD_INFO, waitFor, isArray, includes, logger, entries, isInteger } from "../common";
 import { bcLoaded, canChangeCosplay, validateCharacter } from "../common_bc";
 
-import { itemSetType, getBaselineProperty } from "./type_setting";
+import { getBaselineProperty } from "./type_setting";
+import { wheelHookRegister, ExtendedWheelEvents } from "./events";
+import { applyFlag } from "./lock_flags";
 
 /**
  * An enum with various strip levels for {@link characterStrip}.
@@ -205,9 +207,6 @@ export function fortuneItemsSort(
     );
 }
 
-/** A {@link canUnlock} cache for keeping track of whether a character has keys for specific lock types. */
-const keyCache: Map<string, boolean> = new Map();
-
 /**
  * Return whether the character can unlock the item in question.
  * @param item The item in question
@@ -239,12 +238,7 @@ function canUnlock(item: Item, character: Character): boolean {
             if (blockKeyUse || LogQuery("KeyDeposit", "Cell")) {
                 return false;
             }
-            let hasKey = keyCache.get(`${character.ID}:${lock.Asset.Name}`);
-            if (hasKey === undefined) {
-                hasKey = character.Inventory.some(item => item.Asset.Name === `${lock.Asset.Name}Key`);
-                keyCache.set(`${character.ID}:${lock.Asset.Name}`, hasKey);
-            }
-            return hasKey;
+            return character.Inventory.some(item => item.Asset.Name === `${lock.Asset.Name}Key`);
         }
         case "TimerPasswordPadlock":
         case "PasswordPadlock":
@@ -272,24 +266,137 @@ function blockedByEnclose(character: Character): boolean {
     return (item == null) ? false : !canUnlock(item, character);
 }
 
+wheelHookRegister.addEventListener(
+    "validateItemUnequip",
+    MBS_MOD_INFO,
+    {
+        listener: ({ character, targetGroup }) => {
+            const group = targetGroup as AssetItemGroup;
+            return InventoryGroupIsBlockedForCharacter(character, group.Name, false) ? "InventoryGroupIsBlockedForCharacter" : null;
+        },
+        hookName: "InventoryGroupIsBlockedForCharacter",
+        label: "Check whether the body area (Asset Group) for a character is blocked and cannot be used.",
+        conditional: false,
+    },
+);
+
+wheelHookRegister.addEventListener(
+    "validateItemUnequip",
+    MBS_MOD_INFO,
+    {
+        listener: ({ character, targetGroup }) => {
+            const group = targetGroup as AssetItemGroup;
+            return InventoryGroupIsBlockedByOwnerRule(character, group.Name) ? "InventoryGroupIsBlockedByOwnerRule" : null;
+        },
+        hookName: "InventoryGroupIsBlockedByOwnerRule",
+        label: "Check whether the body area is blocked by an owner rule.",
+        conditional: false,
+    },
+);
+
+wheelHookRegister.addEventListener(
+    "validateItemUnequip",
+    MBS_MOD_INFO,
+    {
+        listener: ({ character, oldItem }) => {
+            return (oldItem && !canUnlock(oldItem, character)) ? "Locked item equipped" : null;
+        },
+        hookName: "LockedItem",
+        label: "Check whether character can unlock the currently equiped item.",
+        conditional: false,
+    },
+);
+
+wheelHookRegister.addEventListener(
+    "validateItemUnequip",
+    MBS_MOD_INFO,
+    {
+        listener: ({ character, newAsset }) => {
+            return (newAsset && InventoryBlockedOrLimited(character, { Asset: newAsset })) ? "InventoryBlockedOrLimited" : null;
+        },
+        hookName: "InventoryBlockedOrLimited",
+        label: "Check whether the new item is blocked or limited.",
+        conditional: false,
+    },
+);
+
+wheelHookRegister.addEventListener(
+    "validateItemUnequip",
+    MBS_MOD_INFO,
+    {
+        listener: ({ newAsset }) => {
+            return (newAsset && !InventoryChatRoomAllow(newAsset.Category ?? [])) ? "InventoryChatRoomAllow" : null;
+        },
+        hookName: "InventoryChatRoomAllow",
+        label: "Check whether the room has the new item's category blocked or not.",
+        conditional: false,
+    },
+);
+
+wheelHookRegister.addEventListener(
+    "validateItemUnequip",
+    MBS_MOD_INFO,
+    {
+        listener: ({ character, newAsset }) => {
+            if (!newAsset) {
+                return null;
+            }
+            const isClubSlave = character.IsPlayer() && LogQuery("ClubSlave", "Management");
+            return (isClubSlave && newAsset.Group.IsAppearance()) ? "Blocked via Club Slave Collar" : null;
+        },
+        hookName: "IsClubSlave",
+        label: "Check whether the new item is blocked bye virtue of being a club slave.",
+        conditional: false,
+    },
+);
+
+wheelHookRegister.addEventListener(
+    "validateItemEquip",
+    MBS_MOD_INFO,
+    {
+        listener: ({ character, newAsset }) => {
+            const status = InventoryDisallow(character, newAsset);
+            return status ? `InventoryDisallow: ${status}` : null;
+        },
+        hookName: "InventoryDisallow",
+        label: "Check whether the new items prerequisites can be satisfied.",
+        conditional: false,
+    },
+);
+
+function eventToJSON(this: ExtendedWheelEvents.Events.Mapping[ExtendedWheelEvents.Events.Names]) {
+    return {
+        ...this,
+        targetGroup: "targetGroup" in this && this.targetGroup ? this.targetGroup.Name : undefined,
+        newAsset: "newAsset" in this && this.newAsset ? this.newAsset.Name : undefined,
+        oldItem: "oldItem" in this && this.oldItem ? { ...this.oldItem, Asset: this.oldItem.Asset.Name, Group: this.oldItem.Asset.Group.Name } : undefined,
+        newItem: "newItem" in this && this.newItem ? { ...this.newItem, Asset: this.newItem.Asset.Name, Group: this.newItem.Asset.Group.Name } : undefined,
+        character: "character" in this && this.character ? pick(this.character, "Name", "ID", "NickName") : undefined,
+    };
+}
+
 /**
  * Equip the character with all items from the passed fortune wheel item list.
  * @param name The name of the wheel of fortune item list
  * @param itemList The items in question
  * @param stripLevel An integer denoting which clothes should be removed; see {@link StripLevel}
- * @param globalCallbacks A callback (or `null`) that will be applied to all items after they're equipped
- * @param globalCallback
- * @param preRunCallback A callback (or `null`) executed before equipping any items from `itemList`
  * @param character The relevant player- or NPC-character
  */
 export function fortuneWheelEquip(
     name: string,
     itemList: readonly FWItem[],
     stripLevel: StripLevel,
-    globalCallback: null | FortuneWheelCallback = null,
-    preRunCallback: null | FortuneWheelPreRunCallback = null,
-    character: Character = Player,
+    character: Character,
+    activeHooks: Readonly<Record<string, FWHook>>,
+    lockFlag: null | FWFlag = null,
 ): void {
+    const hookKwargs = Object.fromEntries(Object.entries(activeHooks).filter(([_, hook]) => {
+        // Drop a hook of it has a required kwarg that is absent
+        return Object.entries(hook.kwargsConfig).every(([name, config]) => !("required" in config) || !config.required || hook.kwargs[name]);
+    }).map(([key, hook]) => {
+        return [key, hook.kwargs];
+    }));
+
     if (!isArray(itemList)) {
         throw new TypeError(`Invalid "itemList" type: ${typeof itemList}`);
     }
@@ -300,10 +407,6 @@ export function fortuneWheelEquip(
         return;
     }
     characterStrip(stripLevel, character);
-
-    if (typeof preRunCallback === "function") {
-        itemList = preRunCallback(itemList, character);
-    }
 
     const blockingItems = getBlockSuperset(
         itemList,
@@ -318,90 +421,277 @@ export function fortuneWheelEquip(
         character,
     );
 
+    const eventLog: Partial<Record<ExtendedWheelEvents.Events.Names, Record<string, Record<string, Record<"succes" | "error" | "skip", {
+        readonly event: WheelEvents.Events.Base;
+        readonly kwargs: Record<string, WheelEvents.Kwargs.All>;
+        readonly reason?: unknown;
+    }[]>>>>> & { readonly activeHooks: Readonly<Record<string, FWHook>> } = {
+        activeHooks,
+    };
+
+    const beforeOutfitEvent: ExtendedWheelEvents.Events.BeforeOutfitEquip = Object.freeze(Object.defineProperty({
+        character,
+        name,
+        toJSON: eventToJSON,
+    }, "toJSON", { value: eventToJSON, enumerable: false }));
+    wheelHookRegister.run("beforeOutfitEquip", beforeOutfitEvent, hookKwargs, eventLog);
+
     // First pass: remove any old restraints occupying or otherwise blocking the to-be equipped slots
-    keyCache.clear();
     const equipFailureRecord: Record<string, string[]> = {};
     const equipCallbackOutputs: Set<AssetGroupName> = new Set();
-    const isClubSlave = character.IsPlayer() && LogQuery("ClubSlave", "Management");
+    const oldItems: Partial<Record<AssetGroupName, Item>> = {};
     for (const { Name, Group, Equip, NoEquip } of <(FWItem & { NoEquip?: boolean })[]>[...blockingItems, ...itemList]) {
         const asset = AssetGet(character.AssetFamily, Group, Name);
+        const group = asset?.Group;
         const oldItem = InventoryGet(character, Group);
         const equip = typeof Equip === "function" ? Equip(character) : true;
 
         // Check whether the item can actually be equipped
-        if (asset == null) {
-            equipFailureRecord[Name] = ["Unknown asset"];
+        if (asset == null || group == null) {
+            equipFailureRecord[`${Group}/${Name}`] = ["Unknown asset"];
             continue;
         } else if (!equip) {
             equipCallbackOutputs.add(Group);
             continue;
         } else {
-            const equipChecks: Record<string, boolean> = {
-                "InventoryGroupIsBlockedForCharacter": InventoryGroupIsBlockedForCharacter(character, <AssetGroupItemName>Group, false),
-                "InventoryGroupIsBlockedByOwnerRule": InventoryGroupIsBlockedByOwnerRule(character, Group),
-                "Locked item equipped": oldItem == null ? false : !canUnlock(oldItem, character),
-            };
-            if (!NoEquip) {
-                equipChecks["InventoryBlockedOrLimited"] = InventoryBlockedOrLimited(character, { Asset: asset });
-                equipChecks["InventoryChatRoomAllow"] = !InventoryChatRoomAllow(asset.Category ?? []);
-                equipChecks["Blocked via Club Slave Collar"] = isClubSlave && asset.Group.Category === "Appearance";
+            // Run the unequip validation
+            const validateEvent: ExtendedWheelEvents.Events.ValidateItemUnequip = Object.freeze(Object.defineProperty({
+                character,
+                name,
+                oldItem: oldItem,
+                newAsset: NoEquip ? null : asset,
+                targetGroup: group,
+            }, "toJSON", { value: eventToJSON, enumerable: false }));
+            const equipChecks = wheelHookRegister.run("validateItemUnequip", validateEvent, hookKwargs, eventLog);
+            if (equipChecks.length !== 0) {
+                equipFailureRecord[`${Group}/${Name}`] = equipChecks;
+                continue;
             }
 
-            const equipFailure = entries(equipChecks).filter(tup => tup[1]);
-            if (equipFailure.length !== 0) {
-                equipFailureRecord[asset.Description] = equipFailure.map(tup => tup[0]);
-            } else if (oldItem != null) {
+            if (oldItem != null) {
+                oldItems[Group] = oldItem;
                 InventoryRemove(character, Group, false);
             }
         }
     }
 
     // Second pass: equip the new items
-    for (const { Name, Group, Craft, ItemCallback, Color, TypeRecord, Property } of itemList) {
+    for (const { Name, Group, Craft, Color, TypeRecord, Property } of itemList) {
         const asset = AssetGet(character.AssetFamily, Group, Name);
-        const errList = equipFailureRecord[asset?.Description ?? Name];
-        if (asset == null || errList !== undefined || equipCallbackOutputs.has(Group)) {
-            continue;
-        } else if (!InventoryAllow(character, asset, asset.Prerequisite, false)) {
-            equipFailureRecord[asset.Description] = ["InventoryAllow"];
+        const group = asset?.Group;
+        const errList = equipFailureRecord[`${Group}/${Name}`];
+        const oldItem = oldItems[Group] ?? null;
+        if (asset == null || group == null || errList !== undefined || equipCallbackOutputs.has(Group)) {
             continue;
         }
 
-        // Equip the item while avoiding refreshes as much as possible until all items are
-        const color = [...(Color ?? asset.DefaultColor)];
+        // Run the equip validation
+        const validateEvent: ExtendedWheelEvents.Events.ValidateItemEquip = Object.freeze(Object.defineProperty({
+            character,
+            name,
+            oldItem,
+            newAsset: asset,
+        }, "toJSON", { value: eventToJSON, enumerable: false }));
+        const equipChecks = wheelHookRegister.run("validateItemEquip", validateEvent, hookKwargs, eventLog);
+        if (equipChecks.length) {
+            equipFailureRecord[`${Group}/${Name}`] = equipChecks;
+            continue;
+        }
+
+        const beforeEquipEventProxy: Pick<ExtendedWheelEvents.Events.BeforeItemEquip, "craft" | "color" | "properties" | "difficultyModifier" | "typeRecord"> = {
+            color: cloneDeep(Color ?? asset.DefaultColor) as string[],
+            properties: cloneDeep(Property),
+            difficultyModifier: 0,
+            typeRecord: TypeRecord ? cloneDeep(TypeRecord) : null,
+            craft: Craft ? Object.seal(pick(Craft, "Name", "Description", "Property")) : null,
+        };
+        const beforeEquipEvent: ExtendedWheelEvents.Events.BeforeItemEquip = Object.freeze(Object.defineProperty({
+            character,
+            name,
+            oldItem,
+            newAsset: asset,
+            lock: lockFlag?.type ?? null,
+
+            get craft() { return beforeEquipEventProxy.craft; },
+            set craft(value) {
+                if (value != null && !CommonIsObject(value)) {
+                    throw new Error("Invalid \"craft\" value; aborting");
+                }
+                beforeEquipEventProxy.craft = value;
+            },
+
+            get typeRecord() { return beforeEquipEventProxy.typeRecord; },
+            set typeRecord(value) {
+                if (value != null && !(CommonIsObject(value) || Object.values(value).every(i => isInteger(i)))) {
+                    throw new Error("Invalid \"typeRecord\" value; aborting");
+                }
+                beforeEquipEventProxy.typeRecord = value;
+            },
+
+            get difficultyModifier() { return beforeEquipEventProxy.difficultyModifier; },
+            set difficultyModifier(value) {
+                if (value != null && !isInteger(value)) {
+                    throw new Error("Invalid \"difficultyModifier\" value; aborting");
+                }
+                beforeEquipEventProxy.difficultyModifier = value ?? 0;
+            },
+
+            get properties() { return beforeEquipEventProxy.properties; },
+            set properties(value) {
+                if (value != null && !CommonIsObject(value)) {
+                    throw new Error("Invalid \"properties\" value; aborting");
+                }
+                beforeEquipEventProxy.properties = value;
+            },
+
+            get color() { return beforeEquipEventProxy.color; },
+            set color(value) {
+                if (value != null && !(isArray(value) && value.every(i => typeof i === "string"))) {
+                    throw new Error("Invalid \"color\" value; aborting");
+                }
+                beforeEquipEventProxy.color = value;
+            },
+        }, "toJSON", { value: eventToJSON, enumerable: false }));
+        wheelHookRegister.run("beforeItemEquip", beforeEquipEvent, hookKwargs, eventLog);
+
+        // Handle color events
+        const colorEvent: ExtendedWheelEvents.Events.Color = Object.freeze(Object.defineProperty({
+            character,
+            name,
+            oldItem,
+            newAsset: asset,
+            color: beforeEquipEvent.color ?? [...asset.DefaultColor],
+        }, "toJSON", { value: eventToJSON, enumerable: false }));
+        const colorOutput = wheelHookRegister.run("color", colorEvent, hookKwargs, eventLog);
+        const color = [...colorEvent.color];
+        for (const colorArray of colorOutput) {
+            for (const [i, c] of colorArray.slice(0, color.length).entries()) {
+                if (i >= color.length) {
+                    break;
+                }
+                if (c !== undefined) {
+                    color[i] = c;
+                }
+            }
+        }
+
+        // Create the item
         const newItem = CharacterAppearanceSetItem(
             character, Group, asset, color, SkillGetWithRatio(character, "Bondage"),
             character.MemberNumber, false,
-        );
-        if (newItem == null) {
-            continue;
+        ) as Item & { Difficulty: number };
+
+        // Handle TypeRecord events
+        let typeRecord = beforeEquipEvent.typeRecord;
+        const typeEvent: ExtendedWheelEvents.Events.TypeRecord = Object.freeze(Object.defineProperty({
+            character,
+            name,
+            oldItem,
+            newAsset: asset,
+            typeRecord: TypeRecord ?? null,
+        }, "toJSON", { value: eventToJSON, enumerable: false }));
+        wheelHookRegister.run("typeRecord", typeEvent, hookKwargs, eventLog).forEach(t => {
+            typeRecord ??= {};
+            for (const [k, v] of entries(t)) {
+                if (v !== undefined) {
+                    typeRecord[k] = v;
+                }
+            }
+        });
+
+        // Handle Property events
+        const properties: ItemProperties = cloneDeep(Property);
+        const propertyEvent: ExtendedWheelEvents.Events.Property = Object.freeze(Object.defineProperty({
+            character,
+            name,
+            oldItem,
+            newAsset: asset,
+            properties: beforeEquipEvent.properties ?? {},
+        }, "toJSON", { value: eventToJSON, enumerable: false }));
+        wheelHookRegister.run("property", propertyEvent, hookKwargs, eventLog).forEach(p => {
+            for (const [k, v] of entries(p)) {
+                if (v !== undefined) {
+                    properties[k] = v as any;
+                }
+            }
+        });
+
+        ExtendedItemSetOptionByRecord(character, newItem, typeRecord, { refresh: false, push: false, properties });
+
+        // Handle crafting events
+        if (asset.Group.IsItem() && !asset.IsLock && asset.Wear && asset.Enable) {
+            let craft: CraftingItem | undefined = cloneDeep(Craft);
+            const craftingEvent: ExtendedWheelEvents.Events.Craft = Object.freeze(Object.defineProperty({
+                character,
+                name,
+                oldItem,
+                newAsset: asset,
+                craft: beforeEquipEvent.craft,
+            }, "toJSON", { value: eventToJSON, enumerable: false }));
+            const craftingOutput = wheelHookRegister.run("craft", craftingEvent, hookKwargs, eventLog);
+            craftingOutput.forEach((output) => {
+                if (!craft) {
+                    craft = {
+                        Name: asset.Description,
+                        Description: "",
+                        Property: "Normal",
+                        Color: "",
+                        Lock: "",
+                        Private: true,
+                        Item: asset.Name,
+                        ItemProperty: null,
+                    };
+                }
+                for (const prop of ["Name", "Description", "Property"] as const) {
+                    const value = output[prop];
+                    if (value != null) {
+                        craft[prop] = value as any;
+                    }
+                }
+            });
+            if (craft != undefined) {
+                newItem.Craft = craft;
+                InventoryCraft(character, character, Group as AssetGroupItemName, newItem.Craft, false, false);
+            }
         }
 
-        if (TypeRecord) {
-            itemSetType(newItem, character, TypeRecord);
+        // Handle difficulty events
+        const difficultyEvent: ExtendedWheelEvents.Events.Difficulty = Object.freeze(Object.defineProperty({
+            character,
+            name,
+            oldItem,
+            newAsset: asset,
+            difficultyModifier: beforeEquipEvent.difficultyModifier ?? 0,
+        }, "toJSON", { value: eventToJSON, enumerable: false }));
+        newItem.Difficulty += sum(wheelHookRegister.run("difficulty", difficultyEvent, hookKwargs, eventLog));
+
+        if (lockFlag) {
+            applyFlag(lockFlag, newItem, character);
         }
 
-        if (Craft !== undefined) {
-            newItem.Craft = cloneDeep(Craft);
-            InventoryCraft(character, character, <AssetGroupItemName>Group, newItem.Craft, false, false);
-        }
-        newItem.Property = Object.assign(newItem.Property ?? {}, cloneDeep(Property));
-
-        // Fire up any of the provided item-specific dynamic callbacks
-        if (typeof ItemCallback === "function") {
-            ItemCallback(newItem, character);
-        }
-        if (typeof globalCallback === "function") {
-            globalCallback(newItem, character);
-        }
+        const afterEquipEvent: ExtendedWheelEvents.Events.AfterItemEquip = Object.freeze(Object.defineProperty({
+            character,
+            name,
+            oldItem,
+            newItem,
+            newAsset: asset,
+        }, "toJSON", { value: eventToJSON, enumerable: false }));
+        wheelHookRegister.run("afterItemEquip", afterEquipEvent, hookKwargs, eventLog);
     }
 
-    CharacterRefresh(character, false, false);
+    const afterOutfitEvent: ExtendedWheelEvents.Events.AfterOutfitEquip = Object.freeze(Object.defineProperty({
+        character,
+        name,
+    }, "toJSON", { value: eventToJSON, enumerable: false }));
+    wheelHookRegister.run("afterOutfitEquip", afterOutfitEvent, hookKwargs, eventLog);
+
+    CharacterRefresh(character, character.IsPlayer(), false);
     if (character.IsPlayer()) {
         ChatRoomCharacterUpdate(character);
         const nFailures = Object.values(equipFailureRecord).length;
         if (nFailures !== 0) {
             logger.log(`Failed to equip ${nFailures} "${name}" wheel of fortune items`, equipFailureRecord);
         }
+        logger.debug(`Fortune wheel '${name}' status`, eventLog);
     }
 }
