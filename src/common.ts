@@ -399,7 +399,7 @@ export class MBSSet<T> extends Set<T> {
         const ret: MBSSet<S> = new MBSSet();
         for (const i of this) {
             if (callbackfn(i, i, this)) {
-                ret.add(i)
+                ret.add(i);
             }
         }
         return ret;

@@ -39,6 +39,7 @@ import "./crafting";
 import "./backport";
 import "./new_items_screen";
 import "./garbling";
+import "./outfit";
 
 // Workaround for checking whether mbs satisfies its declared interface
 // Xref microsoft/TypeScript#38511

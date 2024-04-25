@@ -14,6 +14,7 @@ import {
     clearMBSSettings,
 } from "./settings";
 import { garblingJSON } from "../garbling";
+import { OutfitScreen, OutfitCollection } from "../outfit";
 
 import styles from "./settings_screen.scss";
 
@@ -168,6 +169,16 @@ export class MBSPreferenceScreen extends MBSScreen {
                         <input type="checkbox" data-field="GarblePerSyllable" onClick={this.#boolSwitch.bind(this)}/>
                         Interpolate between the three alternative garbling levels, allowing for a more gradual increase
                         in garbling strength (on a syllable by syllable basis) as the gag level increases
+                    </div>
+
+                    <h2>Outfit manager</h2>
+                    <div class="mbs-preference-settings-pair">
+                        <button
+                            class="mbs-button"
+                            style={{ backgroundImage: "url('./Icons/Wardrobe.png')" }}
+                            onClick={this.#loadOutfits.bind(this)}
+                        />
+                        Open the outfit manager
                     </div>
                 </div>
 
@@ -331,6 +342,18 @@ export class MBSPreferenceScreen extends MBSScreen {
         const [x, y, w, h] = this.screenParams[this.ids.root].shape;
         const params = { [FWSelectScreen.ids.root]: { shape: [95, y, w + (x - 95), h] as RectTuple } };
         this.loadChild(FWSelectScreen, wheelStruct, Player, params);
+    }
+
+    #loadOutfits() {
+        const [x, y, w, h] = this.screenParams[this.ids.root].shape;
+        const params = { [OutfitScreen.ids.root]: { shape: [95, y, w + (x - 95), h] as RectTuple } };
+        const data = OutfitCollection.fromBase64(
+            "test-outfit-123",
+            "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",
+        );
+        if (data) {
+            this.loadChild(OutfitScreen, data, params);
+        }
     }
 
     #lockInputs() {

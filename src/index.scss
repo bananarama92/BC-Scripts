@@ -15,6 +15,7 @@
 	background-position: center;
 	background-repeat: no-repeat;
 	background-size: cover;
+	box-sizing: border-box;
 	height: 100%;
 	overflow: clip;
 	padding-left: min(2dvh, 1dvw);
@@ -128,8 +129,7 @@
 		font-size: var(--mbs-font-small);
 	}
 
-	div, input {
-		background-color: var(--mbs-background-color);
+	div, input, textarea {
 		color: var(--mbs-text-color);
 		font-family: var(--mbs-font-family);
 		font-size: var(--mbs-font-small);
