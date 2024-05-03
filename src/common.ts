@@ -380,3 +380,89 @@ export class Version {
         };
     }
 }
+
+export class MBSSet<T> extends Set<T> {
+    map<U>(callbackfn: (value: T, value2: T, set: MBSSet<T>) => U, thisArg?: any): MBSSet<U> {
+        callbackfn = callbackfn.bind(thisArg);
+        const ret: MBSSet<U> = new MBSSet();
+        for (const i of this) {
+            ret.add(callbackfn(i, i, this));
+        }
+        return ret;
+    }
+
+    filter<S extends T>(callbackfn: (value: T, value2: T, set: MBSSet<T>) => value is S, thisArg?: any): MBSSet<S>;
+    filter(callbackfn: (value: T, value2: T, set: MBSSet<T>) => boolean, thisArg?: any): MBSSet<T>;
+
+    filter<S extends T>(callbackfn: (value: T, value2: T, set: MBSSet<T>) => value is S, thisArg?: any): MBSSet<S> {
+        callbackfn = callbackfn.bind(thisArg);
+        const ret: MBSSet<S> = new MBSSet();
+        for (const i of this) {
+            if (callbackfn(i, i, this)) {
+                ret.add(i)
+            }
+        }
+        return ret;
+    }
+
+    some(callbackfn: (value: T, value2: T, set: MBSSet<T>) => boolean, thisArg?: any): boolean {
+        callbackfn = callbackfn.bind(thisArg);
+        for (const i of this) {
+            if (callbackfn(i, i, this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    every(callbackfn: (value: T, value2: T, set: MBSSet<T>) => boolean, thisArg?: any): boolean {
+        callbackfn = callbackfn.bind(thisArg);
+        for (const i of this) {
+            if (!callbackfn(i, i, this)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    difference(other: Set<T>): MBSSet<T> {
+        return this.filter((i) => !other.has(i));
+    }
+
+    intersection(other: Set<T>): MBSSet<T> {
+        return this.filter((i) => other.has(i));
+    }
+
+    isDisjointFrom(other: Set<T>): boolean {
+        return !this.some((i) => other.has(i));
+    }
+
+    isSubsetOf(other: Set<T>): boolean {
+        return this.every((i) => other.has(i));
+    }
+
+    isSupersetOf(other: Set<T>): boolean {
+        for (const i of other) {
+            if (!this.has(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    symmetricDifference(other: Set<T>): MBSSet<T> {
+        const ret: MBSSet<T> = new MBSSet();
+        for (const [set1, set2] of [[this, other], [other, this]]) {
+            for (const i of set1) {
+                if (!set2.has(i)) {
+                    ret.add(i);
+                }
+            }
+        }
+        return ret;
+    }
+
+    union<U>(other: Set<U>): MBSSet<T | U> {
+        return new MBSSet([...this, ...other]);
+    }
+}
