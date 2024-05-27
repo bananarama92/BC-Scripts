@@ -1,7 +1,7 @@
 import { cloneDeepWith } from "lodash-es";
 
 import { factory } from "./common";
-import { FILE_REGEX, FILE_REGEX_INVERT, FILE_SEP, MBSItem } from "./outfit_collection";
+import { FILE_REGEX, FILE_REGEX_INVERT, MBSItem } from "./outfit_collection";
 import { name, property, color, description, layering, type, difficulty, buttonBar, ID as itemID } from "./item";
 import type { OutfitScreen } from "./screen";
 
@@ -121,113 +121,9 @@ async function renameFile(this: HTMLInputElement, event: Event, screen: OutfitSc
     }
 }
 
-async function renameDirectory(this: HTMLInputElement, event: Event, screen: OutfitScreen) {
-    if (!screen.activeDirectory || screen.activeDirectory.deleteDirectory) {
-        return;
-    }
-
-    const path = (screen.activeDirectory.element.dataset.path || "").split("/").filter(Boolean);
-    if (!path.length) {
-        return;
-    }
-
-    const name = this.value.replace(FILE_REGEX_INVERT, "") || this.defaultValue;
-    path[path.length - 1] = name;
-
-    screen.activeDirectory.newName = name;
-    screen.activeDirectory.update.add("name");
-    screen.activeDirectory.element.style.setProperty("--background-overlay", "lightgreen");
-    const spanElem = screen.activeDirectory.element.children[0].children[1] as HTMLSpanElement;
-    spanElem.innerText = name;
-
-    const childElements = screen.activeDirectory.element.querySelectorAll("[data-id]") as NodeListOf<HTMLDivElement>;
-    for (const e of childElements) {
-        const id = Number.parseInt(e.dataset.id as string, 10);
-        const outfit = screen.data.outfitsFlat.get(id);
-        if (!outfit) {
-            continue;
-        }
-
-        const outfitCache = screen.data.cache.get(id) ?? {
-            outfit,
-            update: new Set(),
-            get updateCount() { return this.update.size; },
-            element: e,
-            readonly: outfit.readonly,
-        };
-        outfitCache.update.add("path");
-        outfitCache.newPath = [...path, ...outfit.path.slice(path.length)];
-        screen.data.cache.set(id, outfitCache);
-    }
-
-    const downloadButton = document.getElementById(ID.directoryExport) as HTMLDivElement;
-    const anchor = downloadButton.children[0].children[1] as HTMLAnchorElement;
-    anchor.innerText = `${name}.json`;
-}
-
-async function downloadDirectory(this: HTMLButtonElement, event: Event, screen: OutfitScreen) {
-    if (!screen.activeDirectory) {
-        return;
-    }
-
-    const elem = screen.activeDirectory.element;
-    const path = (elem.dataset.path ?? "").split(FILE_SEP).filter(Boolean);
-    if (!path.length) {
-        return;
-    }
-
-    const json = new Blob(
-        [JSON.stringify(screen.data.toJSON({ paths: [path] }), null, 4)],
-        { type: "application/json" },
-    );
-
-    const anchor = this.children[1] as HTMLAnchorElement;
-    anchor.href = URL.createObjectURL(json);
-    anchor.click();
-    URL.revokeObjectURL(anchor.href);
-    anchor.href = "";
-}
-
-async function deleteDirectory(this: HTMLButtonElement, event: Event, screen: OutfitScreen) {
-    if (!screen.activeDirectory) {
-        return;
-    }
-    screen.activeDirectory.update.add("delete");
-    screen.activeDirectory.deleteDirectory = true;
-
-    const elem = screen.activeDirectory.element.querySelectorAll("[data-id]") as NodeListOf<HTMLDivElement>;
-    for (const e of elem) {
-        const id = Number.parseInt(e.dataset.id as string, 10);
-        const outfit = screen.data.outfitsFlat.get(id);
-        if (!outfit) {
-            continue;
-        }
-
-        const outfitCache = screen.data.cache.get(id) ?? {
-            outfit,
-            update: new Set(),
-            get updateCount() { return this.update.size; },
-            element: e,
-            readonly: outfit.readonly,
-        };
-        outfitCache.update.add("delete");
-        outfitCache.deleteOutfit = true;
-        screen.data.cache.set(id, outfitCache);
-    }
-
-    screen.activeDirectory = null;
-}
-
-async function addDirectory(this: HTMLButtonElement, event: Event, screen: OutfitScreen) {
-
-}
-
-async function addFile(this: HTMLInputElement, event: Event, screen: OutfitScreen) {
-
-}
 
 export function createElement(screen: OutfitScreen) {
-    return [
+    return (
         <div id={ID.midTopBar}>
             <input
                 type="text"
@@ -268,42 +164,6 @@ export function createElement(screen: OutfitScreen) {
                 />
                 <span class="mbs-outfit-button-tooltip">Delete outfit</span>
             </div>
-        </div>,
-        <div id={ID.midTopBar2}>
-            <input
-                type="text"
-                id={ID.directoryName}
-                placeholder="Directory name"
-                pattern={FILE_REGEX.toString()}
-                onChange={factory(renameDirectory, screen)}
-            />
-
-            <div id={ID.directoryExport} class="mbs-outfit-button-div">
-                <button class="mbs-button" onClick={factory(downloadDirectory, screen)}>
-                    Download outfits
-                    <a style={{ display: "none" }} />
-                </button>
-                <span class="mbs-outfit-button-tooltip">Export JSON</span>
-            </div>
-
-            <div id={ID.directoryAddFile} class="mbs-outfit-button-div">
-                <button class="mbs-button" onClick={factory(addFile, screen)}>Add outfit</button>
-                <span class="mbs-outfit-button-tooltip">Add outfit</span>
-            </div>
-
-            <div id={ID.directoryAddDir} class="mbs-outfit-button-div">
-                <button class="mbs-button" onClick={factory(addDirectory, screen)}>Add directory</button>
-                <span class="mbs-outfit-button-tooltip">Add sub-directory</span>
-            </div>
-
-            <div id={ID.deleteDirectory} class="mbs-outfit-button-div">
-                <button
-                    class="mbs-button"
-                    onClick={factory(deleteDirectory, screen)}
-                    style={{ backgroundImage: "url('./Icons/Trash.png')" }}
-                />
-                <span class="mbs-outfit-button-tooltip">Delete directory</span>
-            </div>
-        </div>,
-    ] as HTMLDivElement[];
+        </div>
+    ) as HTMLDivElement;
 }

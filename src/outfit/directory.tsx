@@ -1,7 +1,9 @@
 import { zip } from "lodash-es";
 
+import { fromItemBundles } from "../fortune_wheel";
+
 import { factory } from "./common";
-import { Outfit, OutfitCollection } from "./outfit_collection";
+import { Outfit, OutfitCollection, FILE_SEP, FILE_REGEX, FILE_REGEX_INVERT } from "./outfit_collection";
 import * as outfit2 from "./outfit";
 import type { OutfitScreen } from "./screen";
 
@@ -199,7 +201,7 @@ function searchInput(this: HTMLInputElement) {
 export function createSearchBar(screen: OutfitScreen): HTMLDivElement {
     return (
         <div id={ID.searchBar}>
-            <input type="text" id={ID.searchInput} placeholder="Search" onInput={searchInput} />
+            <input type="search" id={ID.searchInput} placeholder="Search" onInput={searchInput} />
             <div id={ID.accept} class="mbs-button-div">
                 <button
                     class="mbs-button"
@@ -238,6 +240,214 @@ export function createElementTopBar(screen: OutfitScreen): HTMLDivElement {
                 onClick={factory(onClick, screen)}
             />
             <div class="mbs-button-tooltip" style={{ justifySelf: "right" }}>Save and exit</div>
+        </div>
+    ) as HTMLDivElement;
+}
+
+function addDirectory(this: HTMLButtonElement, event: Event, screen: OutfitScreen) {
+    if (!screen.activeDirectory) {
+        return;
+    }
+
+    const dirName = prompt("Enter directory name")?.trim().replace(FILE_REGEX_INVERT, "");
+    if (!dirName) {
+        return;
+    }
+
+    const path = `${screen.activeDirectory.element.dataset.path ?? FILE_SEP}${dirName}${FILE_SEP}`
+    const div = screen.activeDirectory.element.appendChild(<div>
+        <div class="mbs-outfit-path-node" data-path={path} data-active={true}>
+            <div class="mbs-outfit-pair">
+                <img onClick={directoryClick} src="./Icons/Down.png" />
+                <span onClick={factory(directoryClickBob, screen)}>{dirName}</span>
+            </div>
+        </div> as HTMLDivElement
+    </div>) as HTMLDivElement;
+
+    const dirs = Array.from(document.getElementsByClassName("mbs-outfit-pair")) as HTMLDivElement[];
+    for (const [i, elem] of dirs.entries()) {
+        elem.classList.remove("gray");
+        elem.classList.remove("lightgray");
+        elem.classList.add(i % 2  ? "gray" : "lightgray");
+    }
+
+    screen.activeDirectory = {
+        element: div,
+        update: new Set(),
+        get updateCount() { return this.update.size; },
+    };
+}
+
+function addFile(this: HTMLInputElement, event: Event, screen: OutfitScreen) {
+    if (!screen.activeDirectory) {
+        return;
+    }
+
+    const fileName = prompt("Enter outfit name")?.trim().replace(FILE_REGEX_INVERT, "");
+    if (!fileName) {
+        return;
+    }
+
+    const outfitCode = prompt("Enter outfit code")?.trim();
+    if (!outfitCode) {
+        return;
+    }
+
+    let items: ItemBundle[];
+    let itemList: FWItem[];
+    try {
+        items = JSON.parse(LZString.decompressFromBase64(outfitCode) as string);
+        itemList = fromItemBundles(items);
+    } catch (ex) {
+        console.error(ex);
+        return;
+    }
+
+    const dirs = Array.from(document.getElementsByClassName("mbs-outfit-pair")) as HTMLDivElement[];
+    for (const [i, elem] of dirs.entries()) {
+        elem.classList.remove("gray");
+        elem.classList.remove("lightgray");
+        elem.classList.add(i % 2  ? "gray" : "lightgray");
+    }
+
+    screen.activeDirectory = null;
+    screen.activeOutfit = null;
+}
+
+async function renameDirectory(this: HTMLInputElement, event: Event, screen: OutfitScreen) {
+    if (!screen.activeDirectory || screen.activeDirectory.deleteDirectory) {
+        return;
+    }
+
+    const path = (screen.activeDirectory.element.dataset.path || "").split(FILE_SEP).filter(Boolean);
+    if (!path.length) {
+        return;
+    }
+
+    const name = this.value.replace(FILE_REGEX_INVERT, "") || this.defaultValue;
+    path[path.length - 1] = name;
+
+    screen.activeDirectory.newName = name;
+    screen.activeDirectory.update.add("name");
+    screen.activeDirectory.element.style.setProperty("--background-overlay", "lightgreen");
+    const spanElem = screen.activeDirectory.element.children[0].children[1] as HTMLSpanElement;
+    spanElem.innerText = name;
+
+    const childElements = screen.activeDirectory.element.querySelectorAll("[data-id]") as NodeListOf<HTMLDivElement>;
+    for (const e of childElements) {
+        const id = Number.parseInt(e.dataset.id as string, 10);
+        const outfit = screen.data.outfitsFlat.get(id);
+        if (!outfit) {
+            continue;
+        }
+
+        const outfitCache = screen.data.cache.get(id) ?? {
+            outfit,
+            update: new Set(),
+            get updateCount() { return this.update.size; },
+            element: e,
+            readonly: outfit.readonly,
+        };
+        outfitCache.update.add("path");
+        outfitCache.newPath = [...path, ...outfit.path.slice(path.length)];
+        screen.data.cache.set(id, outfitCache);
+    }
+
+    const downloadButton = document.getElementById(ID.directoryExport) as HTMLDivElement;
+    const anchor = downloadButton.children[0].children[1] as HTMLAnchorElement;
+    anchor.innerText = `${name}.json`;
+}
+
+async function downloadDirectory(this: HTMLButtonElement, event: Event, screen: OutfitScreen) {
+    if (!screen.activeDirectory) {
+        return;
+    }
+
+    const elem = screen.activeDirectory.element;
+    const path = (elem.dataset.path ?? "").split(FILE_SEP).filter(Boolean);
+    if (!path.length) {
+        return;
+    }
+
+    const json = new Blob(
+        [JSON.stringify(screen.data.toJSON({ paths: [path] }), null, 4)],
+        { type: "application/json" },
+    );
+
+    const anchor = this.children[1] as HTMLAnchorElement;
+    anchor.href = URL.createObjectURL(json);
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+    anchor.href = "";
+}
+
+async function deleteDirectory(this: HTMLButtonElement, event: Event, screen: OutfitScreen) {
+    if (!screen.activeDirectory) {
+        return;
+    }
+    screen.activeDirectory.update.add("delete");
+    screen.activeDirectory.deleteDirectory = true;
+
+    const elem = screen.activeDirectory.element.querySelectorAll("[data-id]") as NodeListOf<HTMLDivElement>;
+    for (const e of elem) {
+        const id = Number.parseInt(e.dataset.id as string, 10);
+        const outfit = screen.data.outfitsFlat.get(id);
+        if (!outfit) {
+            continue;
+        }
+
+        const outfitCache = screen.data.cache.get(id) ?? {
+            outfit,
+            update: new Set(),
+            get updateCount() { return this.update.size; },
+            element: e,
+            readonly: outfit.readonly,
+        };
+        outfitCache.update.add("delete");
+        outfitCache.deleteOutfit = true;
+        screen.data.cache.set(id, outfitCache);
+    }
+
+    screen.activeDirectory = null;
+}
+
+export function functionCreateTopBar(screen: OutfitScreen) {
+    return (
+        <div id={ID.midTopBar2}>
+            <input
+                type="text"
+                id={ID.directoryName}
+                placeholder="Directory name"
+                pattern={FILE_REGEX.toString()}
+                onChange={factory(renameDirectory, screen)}
+            />
+
+            <div id={ID.directoryExport} class="mbs-outfit-button-div">
+                <button class="mbs-button" onClick={factory(downloadDirectory, screen)}>
+                    Download outfits
+                    <a style={{ display: "none" }} />
+                </button>
+                <span class="mbs-outfit-button-tooltip">Export JSON</span>
+            </div>
+
+            <div id={ID.directoryAddFile} class="mbs-outfit-button-div">
+                <button class="mbs-button" onClick={factory(addFile, screen)}>Add outfit</button>
+                <span class="mbs-outfit-button-tooltip">Add outfit</span>
+            </div>
+
+            <div id={ID.directoryAddDir} class="mbs-outfit-button-div">
+                <button class="mbs-button" onClick={factory(addDirectory, screen)}>Add directory</button>
+                <span class="mbs-outfit-button-tooltip">Add sub-directory</span>
+            </div>
+
+            <div id={ID.deleteDirectory} class="mbs-outfit-button-div">
+                <button
+                    class="mbs-button"
+                    onClick={factory(deleteDirectory, screen)}
+                    style={{ backgroundImage: "url('./Icons/Trash.png')" }}
+                />
+                <span class="mbs-outfit-button-tooltip">Delete directory</span>
+            </div>
         </div>
     ) as HTMLDivElement;
 }

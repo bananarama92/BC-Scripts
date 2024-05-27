@@ -207,7 +207,7 @@ export class OutfitScreen extends MBSScreen {
 
                 <div id={ID.mid}>
                     <div id={ID.midTop} style={{ display: "none" }}>
-                        {outfit2.createElement(this)}
+                        {[outfit2.createElement(this), directory.createElementTopBar(this)]}
                         <div id={ID.outfitContainer}/>
                     </div>
                     <div id={ID.midBot} style={{ display: "none" }}>
