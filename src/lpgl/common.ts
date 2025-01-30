@@ -93,16 +93,6 @@ class MBSLog extends Array<LogEntry> {
     error(...args: unknown[]) {
         this.#log("error", args);
     }
-
-    toJSON() {
-        return this.map(arg => {
-            return {
-                date: arg.date.toUTCString(),
-                level: arg.level,
-                args: arg.args.map(i => (i instanceof Map || i instanceof Set) ? Array.from(i) : i),
-            };
-        });
-    }
 }
 
 /** The MBS logger */

@@ -29,10 +29,10 @@ class JSON {
     async #setField(type: "phoneticDict" | "gagData", url: string) {
         const data = await fetch(url).then(data => {
             if (data.ok) {
-                logger.debug(`Successfully fetched "${type}" json`, data);
+                logger.debug(`Successfully fetched '${type}' json`, data);
                 return data.json() as Promise<Record<string, any>>;
             } else {
-                logger.debug(`Failed to fetch "${type}" json`, data);
+                logger.debug(`Failed to fetch '${type}' json`, data);
                 return Promise.resolve(null);
             }
         }).catch(reason => {
